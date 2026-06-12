@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Toolbar from "../components/Toolbar";
 import Canvas from "../components/Canvas";
 
 export default function Editor() {
@@ -12,30 +11,19 @@ export default function Editor() {
   const [edges, setEdges] = useState([]);
 
   return (
-    <>
-      <Toolbar
-        mode={mode}
-        setMode={setMode}
-        rooms={rooms}
-        paths={paths}
-        doors={doors}
-        nodes={nodes}
-        edges={edges}
-      />
-
-      <Canvas
-        mode={mode}
-        rooms={rooms}
-        setRooms={setRooms}
-        paths={paths}
-        setPaths={setPaths}
-        doors={doors}
-        setDoors={setDoors}
-        nodes={nodes}
-        setNodes={setNodes}
-        edges={edges}
-        setEdges={setEdges}
-      />
-    </>
+    <Canvas
+      mode={mode}
+      setMode={setMode}
+      rooms={rooms}
+      setRooms={setRooms}
+      paths={paths}
+      setPaths={setPaths}
+      doors={doors}
+      setDoors={setDoors}
+      nodes={nodes}
+      setNodes={setNodes}
+      edges={edges}
+      setEdges={setEdges}
+    />
   );
 }
