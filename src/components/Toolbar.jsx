@@ -2,6 +2,7 @@ export default function Toolbar({
   mode,
   setMode,
   rooms,
+  paths,
   doors,
   nodes,
   edges,
@@ -9,9 +10,7 @@ export default function Toolbar({
   function exportJson() {
     const data = {
       rooms,
-      doors,
-      nodes,
-      edges,
+      paths,
     };
 
     const blob = new Blob(
@@ -54,9 +53,9 @@ export default function Toolbar({
       </button>
 
       <button
-        onClick={() => setMode("corridor")}
+        onClick={() => setMode("path")}
       >
-        Corridor
+        Path
       </button>
 
       <button

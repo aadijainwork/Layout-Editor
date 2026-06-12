@@ -9,8 +9,8 @@ export default function Canvas({
   setDoors,
   nodes,
   setNodes,
-  corridors,
-  setCorridors,
+  paths,
+  setPaths,
 }) {
   const [currentPolygon, setCurrentPolygon] =
     useState([]);
@@ -27,7 +27,7 @@ export default function Canvas({
 
     if (
         mode === "room" ||
-        mode === "corridor"
+        mode === "path"
     ) {
         setCurrentPolygon(prev => [
         ...prev,
@@ -37,7 +37,7 @@ export default function Canvas({
         }
     ]);
     }
-
+    
     if (mode === "door") {
 
         const id =
@@ -50,17 +50,41 @@ export default function Canvas({
                 prompt("Door Width")
             );
 
-        setDoors(prev => [
-            ...prev,
-            {
-             id,
-             x: Math.round(x),
-             y: Math.round(y),
-             width
-            }
-        ]);
+        const roomId =
+            prompt(
+                "Room Name"
+            );
 
-    }   
+    if (!roomId) return;
+
+    setRooms(prev =>
+        prev.map(room => {
+
+            if (
+                room.id !== roomId
+            ) {
+                return room;
+            }
+
+            return {
+                ...room,
+
+                doors: [
+                    ...(room.doors || []),
+
+                    {
+                        id,
+                        x: Math.round(x),
+                        y: Math.round(y),
+                        width
+                    }
+                ]
+            };
+
+        })
+    );
+
+}
   }
 
   function finishPolygon() {
@@ -68,36 +92,51 @@ export default function Canvas({
         currentPolygon.length < 3
     ) return;
 
-    const name =
-        prompt("Name");
+    if (mode === "room") {
 
-    if (!name) return;
+        const name =
+            prompt("Room Name");
 
-            if (mode === "room") {
+        if (!name) return;
 
-    setRooms(prev => [
-      ...prev,
-      {
-        id: name,
-        polygon:
-          currentPolygon
-      }
-    ]);
+        const type =
+            prompt(
+                "Room Type:\n\nroom\nopen_space\nlobby\nstaircase"
+            );
 
-  }
+        if (!type) return;
 
-  if (mode === "corridor") {
+        setRooms(prev => [
+            ...prev,
+            {
+                id: name,
+                type: type,
+                polygon: currentPolygon,
+                doors: []
+            }
+        ]);
+    }
 
-    setCorridors(prev => [
-      ...prev,
-      {
-        id: name,
-        polygon:
-          currentPolygon
-      }
-    ]);
+    if (mode === "path") {
 
-  }
+        const width =
+            Number(
+                prompt(
+                    "Path Width"
+                )
+            );
+
+        setPaths(prev => [
+            ...prev,
+            {
+                id:
+                    `path_${prev.length + 1}`,
+                width,
+                points:
+                    currentPolygon
+            }
+        ]);
+    }
 
   setCurrentPolygon([]);
 
@@ -118,7 +157,7 @@ export default function Canvas({
           zIndex: 1000,
         }}
       >
-        Finish Room
+        Finish
       </button>
 
       <img
@@ -156,22 +195,38 @@ export default function Canvas({
             />
           )
         )}
-        {corridors.map(
-            (corridor, index) => (
-                <polygon
-                    key={`corridor-${index}`}
-                    points={corridor.polygon
+        {paths.map(
+            (path, index) => (
+                <polyline
+                    key={index}
+                    points={path.points
                         .map(
-                            (p) =>
-                        `${p.x},${p.y}`
-                    )
-                        .join(" ")}
-                    fill="rgba(255,165,0,0.3)"
-                    stroke="orange"
-                    strokeWidth="2"
-                    />
-                     )
+                            p =>
+                                `${p.x},${p.y}`
+                            )
+                            .join(" ")}
+                        fill="none"
+                        stroke="orange"
+                        strokeWidth={
+                            path.width
+                        }
+                        opacity={0.4}
+                />
+            )
         )}
+        {paths.map(path =>
+            path.points.map(
+                (point, index) => (
+                    <circle
+                        key={`${path.id}-${index}`}
+                        cx={point.x}
+                        cy={point.y}
+                        r={5}
+                        fill="red"
+                />
+            )
+        )
+    )}
 
         {currentPolygon.length >
           1 && (
