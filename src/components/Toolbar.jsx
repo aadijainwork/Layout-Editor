@@ -3,10 +3,250 @@ export default function Toolbar({
   setMode,
   rooms,
   paths,
-  doors,
-  nodes,
-  edges,
 }) {
+
+  function getNodeKey(x, y) {
+    return `${x}_${y}`;
+  }
+  
+  function generateGraph() {
+
+    function distance(a, b) {
+
+      return Math.sqrt(
+        Math.pow(a.x - b.x, 2) +
+        Math.pow(a.y - b.y, 2)
+      );
+    }
+
+    console.log("Generate Graph clicked");
+
+    let nodeCounter = 1;
+
+    const nodes = [];
+    const edges = [];
+
+    const nodeMap = new Map();
+
+    function getOrCreateNode(point) {
+
+        const key =
+          getNodeKey(
+            point.x,
+            point.y
+          );
+
+        if (
+          nodeMap.has(key)
+        ) {
+          return nodeMap.get(key);
+        }   
+
+        const nodeId =
+          `N${nodeCounter++}`;
+
+        const node = {
+          id: nodeId,
+          x: point.x,
+          y: point.y,
+        };
+
+        nodes.push(node);
+
+        nodeMap.set(
+          key,
+          nodeId
+        );
+
+        return nodeId;
+    }
+
+    paths.forEach(path => {
+
+      const pathNodeIds =
+        path.points.map(
+          point =>
+            getOrCreateNode(
+              point
+            )
+        );
+
+      for (
+        let i = 0;
+        i <
+        pathNodeIds.length - 1;
+        i++
+    ) {
+
+      const currentNode =
+        nodes.find(
+          n =>
+            n.id ===
+            pathNodeIds[i]
+        );
+
+      const nextNode =
+        nodes.find(
+          n =>
+            n.id ===
+            pathNodeIds[i + 1]
+        );
+
+      const edgeDistance = 
+        distance(
+            currentNode,
+            nextNode
+        );
+
+      edges.push({
+        from:
+          pathNodeIds[i],
+
+        to:
+          pathNodeIds[i + 1],
+
+        distance:
+          Math.round(
+            edgeDistance * 100
+          ) / 100
+    });
+
+edges.push({
+  from:
+    pathNodeIds[i + 1],
+
+  to:
+    pathNodeIds[i],
+
+  distance:
+    Math.round(
+      edgeDistance * 100
+    ) / 100
+});
+
+    }
+
+  });
+
+  rooms.forEach(room => {
+
+    room.doors?.forEach(door => {
+
+      let nearestNode = null;
+      let nearestDistance =
+        Infinity;
+
+      nodes.forEach(node => {
+
+        const d =
+          distance(
+            door,
+            node
+          );
+
+        if (
+          d <
+          nearestDistance
+        ) {
+
+          nearestDistance =
+            d;
+
+          nearestNode =
+            node;
+
+        }
+
+      });
+
+    const doorNodeId =
+      `D${nodeCounter++}`;
+
+    nodes.push({
+
+      id: doorNodeId,
+
+      x: door.x,
+
+      y: door.y,
+
+      roomId: room.id,
+
+      doorId: door.id,
+
+      type: "door"
+
+    });
+
+    edges.push({
+        from: doorNodeId,
+        to: nearestNode.id,
+        distance:
+            Math.round(
+                nearestDistance * 100
+            ) / 100
+    });
+
+    edges.push({
+        from: nearestNode.id,
+        to: doorNodeId,
+        distance:
+            Math.round(
+                nearestDistance * 100
+            ) / 100
+    });
+
+  });
+
+});
+
+  const floorDefinition = {
+    rooms,
+    paths,
+
+    graph: {
+      nodes,
+      edges
+    }
+  };
+
+  console.log(
+    "Generated Floor",
+    floorDefinition
+  );
+
+  const blob =
+    new Blob(
+      [
+        JSON.stringify(
+          floorDefinition,
+          null,
+          2
+        )
+      ],
+      {
+        type:
+          "application/json"
+      }
+    );
+
+  const link =
+    document.createElement(
+      "a"
+    );
+
+  link.href =
+    URL.createObjectURL(
+      blob
+    );
+
+  link.download =
+    "floorDefinition.json";
+
+  link.click();
+
+}
+
   function exportJson() {
     const data = {
       rooms,
@@ -62,6 +302,12 @@ export default function Toolbar({
         onClick={() => setMode("door")}
       >
         Door
+      </button>
+
+      <button
+        onClick={() => generateGraph()}
+      >
+        Generate Graph
       </button>
 
       <button onClick={exportJson}>

@@ -243,16 +243,29 @@ export default function Canvas({
           />
         )}
 
-        {doors.map(
-          (door, index) => (
-            <circle
-              key={index}
-              cx={door.x}
-              cy={door.y}
-              r={5}
-              fill="green"
-            />
-          )
+        {rooms.map(room =>
+            room.doors?.map((door, index) => (
+                <g key={`${room.id}-${index}`}>
+
+                    <circle
+                        cx={door.x}
+                        cy={door.y}
+                        r={6}
+                        fill="lime"
+                        stroke="black"
+                        strokeWidth="1"
+                    />
+
+                    <text
+                        x={door.x + 10}
+                        y={door.y}
+                        fontSize="10"
+                    >
+                        {door.id}
+                    </text>
+
+                </g>
+            ))
         )}
       </svg>
     </div>
