@@ -6,9 +6,9 @@ import styles from "../css/Canvas.module.css";
 export default function Canvas({
   mode, setMode,
   rooms, setRooms,
-  doors, setDoors,
   nodes, setNodes,
   paths, setPaths,
+  edges, setEdges,
 }) {
   const [currentPolygon, setCurrentPolygon] = useState([]);
   const [mousePos, setMousePos]             = useState({ x: 0, y: 0 });
@@ -323,12 +323,209 @@ export default function Canvas({
     setCurrentPolygon((prev) => prev.slice(0, -1));
   }
 
-  function handleExport() {
-    const blob = new Blob([JSON.stringify({ rooms, paths, doors }, null, 2)], { type: "application/json" });
+  function getNodeKey(x, y) {
+    return `${x}_${y}`;
+  }
+
+  function distance(a, b) {
+    return Math.sqrt(
+      Math.pow(a.x - b.x, 2) +
+      Math.pow(a.y - b.y, 2)
+    );
+  }
+
+  function projectPointOnSegment(point, start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const lengthSquared = dx * dx + dy * dy;
+
+    if (lengthSquared === 0) return start;
+
+    let t =
+      ((point.x - start.x) * dx + (point.y - start.y) * dy) /
+      lengthSquared;
+
+    t = Math.max(0, Math.min(1, t));
+
+    return {
+      x: start.x + t * dx,
+      y: start.y + t * dy,
+    };
+  }
+
+  function downloadJson(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "hudson_f5_layout.json";
+    a.download = filename;
     a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function generateGraph() {
+    let nodeCounter = 1;
+
+    const generatedNodes = [];
+    const generatedEdges = [];
+    const graphSegments = [];
+    const nodeMap = new Map();
+
+    function getOrCreateNode(point) {
+      const key = getNodeKey(point.x, point.y);
+
+      if (nodeMap.has(key)) {
+        return nodeMap.get(key);
+      }
+
+      const nodeId = `N${nodeCounter++}`;
+      const node = {
+        id: nodeId,
+        x: point.x,
+        y: point.y,
+      };
+
+      generatedNodes.push(node);
+      nodeMap.set(key, nodeId);
+
+      return nodeId;
+    }
+
+    paths.forEach((path) => {
+      const pathNodeIds = path.points.map((point) => getOrCreateNode(point));
+
+      for (let i = 0; i < pathNodeIds.length - 1; i++) {
+        const currentNode = generatedNodes.find((n) => n.id === pathNodeIds[i]);
+        const nextNode = generatedNodes.find((n) => n.id === pathNodeIds[i + 1]);
+        const edgeDistance = distance(currentNode, nextNode);
+        const roundedDistance = Math.round(edgeDistance * 100) / 100;
+
+        generatedEdges.push({
+          from: pathNodeIds[i],
+          to: pathNodeIds[i + 1],
+          distance: roundedDistance,
+        });
+
+        generatedEdges.push({
+          from: pathNodeIds[i + 1],
+          to: pathNodeIds[i],
+          distance: roundedDistance,
+        });
+
+        graphSegments.push({
+          startId: pathNodeIds[i],
+          endId: pathNodeIds[i + 1],
+          start: currentNode,
+          end: nextNode,
+        });
+      }
+    });
+
+    rooms.forEach((room) => {
+      room.doors?.forEach((door) => {
+        let nearestSegment = null;
+        let nearestProjection = null;
+        let nearestSegmentDistance = Infinity;
+
+        paths.forEach((path) => {
+          for (let i = 0; i < path.points.length - 1; i++) {
+            const start = path.points[i];
+            const end = path.points[i + 1];
+            const projection = projectPointOnSegment(door, start, end);
+            const d = distance(door, projection);
+
+            if (d < nearestSegmentDistance) {
+              nearestSegmentDistance = d;
+              nearestSegment = graphSegments.find(
+                (segment) =>
+                  segment.start.x === start.x &&
+                  segment.start.y === start.y &&
+                  segment.end.x === end.x &&
+                  segment.end.y === end.y
+              );
+              nearestProjection = projection;
+            }
+          }
+        });
+
+        if (!nearestSegment || !nearestProjection) return;
+
+        const junctionId = `J${nodeCounter++}`;
+
+        generatedNodes.push({
+          id: junctionId,
+          x: nearestProjection.x,
+          y: nearestProjection.y,
+          type: "junction",
+        });
+
+        const distToStart = distance(nearestProjection, nearestSegment.start);
+        const distToEnd = distance(nearestProjection, nearestSegment.end);
+
+        generatedEdges.push({
+          from: nearestSegment.startId,
+          to: junctionId,
+          distance: Math.round(distToStart * 100) / 100,
+        });
+
+        generatedEdges.push({
+          from: junctionId,
+          to: nearestSegment.startId,
+          distance: Math.round(distToStart * 100) / 100,
+        });
+
+        generatedEdges.push({
+          from: junctionId,
+          to: nearestSegment.endId,
+          distance: Math.round(distToEnd * 100) / 100,
+        });
+
+        generatedEdges.push({
+          from: nearestSegment.endId,
+          to: junctionId,
+          distance: Math.round(distToEnd * 100) / 100,
+        });
+
+        const doorNodeId = `D${nodeCounter++}`;
+
+        generatedNodes.push({
+          id: doorNodeId,
+          x: door.x,
+          y: door.y,
+          roomId: room.id,
+          doorId: door.id,
+          type: "door",
+        });
+
+        const doorDistance = distance(door, nearestProjection);
+
+        generatedEdges.push({
+          from: doorNodeId,
+          to: junctionId,
+          distance: Math.round(doorDistance * 100) / 100,
+        });
+
+        generatedEdges.push({
+          from: junctionId,
+          to: doorNodeId,
+          distance: Math.round(doorDistance * 100) / 100,
+        });
+      });
+    });
+
+    setNodes(generatedNodes);
+    setEdges(generatedEdges);
+
+    downloadJson(
+      {
+        rooms,
+        paths,
+        graph: {
+          nodes: generatedNodes,
+          edges: generatedEdges,
+        },
+      },
+      "floorDefinition.json"
+    );
   }
 
   const cursor = isDragging ? "grabbing"
@@ -339,16 +536,19 @@ export default function Canvas({
   const r4 = 4  / scale;
   const r6 = 6  / scale;
   const fs = 11 / scale;
+  const doorCount = rooms.reduce(
+    (count, room) => count + (room.doors?.length || 0),
+    0
+  );
 
   return (
     <div className={styles.wrapper}>
       <Sidebar
         mode={mode} setMode={setMode}
-        rooms={rooms} paths={paths} doors={doors}
         currentPolygon={currentPolygon}
         onFinish={finishPolygon}
         onUndo={undoLastPoint}
-        onExport={handleExport}
+        onGenerateGraph={generateGraph}
         roomTypeModal={roomTypeModal}
         setRoomTypeModal={setRoomTypeModal}
         selectedType={selectedType}
@@ -473,7 +673,7 @@ export default function Canvas({
         <div className={styles.statusBar}>
           <span> {rooms.length} rooms</span>
           <span> {paths.length} paths</span>
-          <span> {doors.length} doors</span>
+          <span> {doorCount} doors</span>
           <span>x: {mousePos.x} · y: {mousePos.y}</span>
         </div>
       </div>

@@ -10,13 +10,10 @@ const ROOM_TYPES = [
 export default function Sidebar({
   mode,
   setMode,
-  rooms,
-  paths,
-  doors,
   currentPolygon,
   onFinish,
   onUndo,
-  onExport,
+  onGenerateGraph,
   roomTypeModal,
   setRoomTypeModal,
   selectedType,
@@ -118,10 +115,12 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* Export pinned to bottom */}
-      <button className={styles.exportBtn} onClick={onExport}>
-         Export
-      </button>
+      {/* Graph generation pinned to bottom */}
+      <div className={styles.bottomActions}>
+        <button className={styles.generateBtn} onClick={onGenerateGraph}>
+          Generate Graph
+        </button>
+      </div>
 
     </div>
   );

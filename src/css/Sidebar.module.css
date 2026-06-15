@@ -129,7 +129,14 @@
   margin-top: 2px;
 }
 
-.exportBtn {
+.bottomActions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.generateBtn {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -142,12 +149,15 @@
   cursor: pointer;
   width: 100%;
   font-family: inherit;
-  margin-top: auto;
   transition: background 0.15s;
+  border: none;
+  background: #185FA5;
+  color: #ffffff;
+  font-weight: 500;
 }
 
-.exportBtn:hover {
-  background: #ebebeb;
+.generateBtn:hover {
+  background: #0f4a85;
 }
 
 .modalOverlay {

@@ -6,7 +6,6 @@ export default function Editor() {
 
   const [rooms, setRooms] = useState([]);
   const [paths, setPaths] = useState([]);
-  const [doors, setDoors] = useState([]);
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
 
@@ -18,8 +17,6 @@ export default function Editor() {
       setRooms={setRooms}
       paths={paths}
       setPaths={setPaths}
-      doors={doors}
-      setDoors={setDoors}
       nodes={nodes}
       setNodes={setNodes}
       edges={edges}
