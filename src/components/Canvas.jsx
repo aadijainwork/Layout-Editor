@@ -15,6 +15,8 @@ export default function Canvas({
   const [roomTypeModal, setRoomTypeModal]   = useState(null);
   const [formModal, setFormModal]           = useState(null);
   const [selectedType, setSelectedType]     = useState("");
+  const [hoveredTarget, setHoveredTarget]   = useState(null);
+  const [selectedTarget, setSelectedTarget] = useState(null);
   const [scale, setScale]                   = useState(1);
   const [offset, setOffset]                 = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging]         = useState(false);
@@ -163,7 +165,9 @@ export default function Canvas({
   }
 
   function handleMouseMove(e) {
-    setMousePos(toBlueprint(e.clientX, e.clientY));
+    const point = toBlueprint(e.clientX, e.clientY);
+    setMousePos(point);
+    setHoveredTarget(findHoveredTarget(point));
     if (!isPanning.current) return;
     const dx = e.clientX - panStart.current.x;
     const dy = e.clientY - panStart.current.y;
@@ -179,6 +183,8 @@ export default function Canvas({
   // ── Click: place polygon point ────────────────────────────────────────────
   function handleClick(e) {
     if (didPan.current) { didPan.current = false; return; }
+    if (formModal || roomTypeModal) return;
+
     const { x, y } = toBlueprint(e.clientX, e.clientY);
 
     if (mode === "room" || mode === "path") {
@@ -187,6 +193,104 @@ export default function Canvas({
     if (mode === "door") {
       openDoorModal(x, y);
     }
+  }
+
+  function isPointInsidePolygon(point, polygon) {
+    if (!Array.isArray(polygon) || polygon.length < 3) return false;
+
+    let inside = false;
+
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x;
+      const yi = polygon[i].y;
+      const xj = polygon[j].x;
+      const yj = polygon[j].y;
+
+      const intersects =
+        yi > point.y !== yj > point.y &&
+        point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi;
+
+      if (intersects) inside = !inside;
+    }
+
+    return inside;
+  }
+
+  function findHoveredTarget(point) {
+    let nearestDoor = null;
+
+    rooms.forEach((room, roomIndex) => {
+      room.doors?.forEach((door, doorIndex) => {
+        const d = distance(point, door);
+        if (d <= 10 && (!nearestDoor || d < nearestDoor.distance)) {
+          nearestDoor = { type: "door", roomIndex, doorIndex, distance: d };
+        }
+      });
+    });
+
+    if (nearestDoor) {
+      return {
+        type: nearestDoor.type,
+        roomIndex: nearestDoor.roomIndex,
+        doorIndex: nearestDoor.doorIndex,
+      };
+    }
+
+    let nearestPath = null;
+
+    paths.forEach((path, pathIndex) => {
+      for (let i = 0; i < path.points.length - 1; i++) {
+        const projection = projectPointOnSegment(point, path.points[i], path.points[i + 1]);
+        const d = distance(point, projection);
+        const threshold = Math.max(path.width / 2 + 2, 6);
+
+        if (d <= threshold && (!nearestPath || d < nearestPath.distance)) {
+          nearestPath = { type: "path", pathIndex, distance: d };
+        }
+      }
+    });
+
+    if (nearestPath) {
+      return {
+        type: nearestPath.type,
+        pathIndex: nearestPath.pathIndex,
+      };
+    }
+
+    const roomIndex = rooms.findIndex((room) => isPointInsidePolygon(point, room.polygon));
+    if (roomIndex < 0) return null;
+
+    return { type: "room", roomIndex };
+  }
+
+  function removeTarget(target) {
+    if (!target) return;
+
+    if (target.type === "room") {
+      setRooms((prev) => prev.filter((_, index) => index !== target.roomIndex));
+    }
+
+    if (target.type === "door") {
+      setRooms((prev) =>
+        prev.map((room, roomIndex) =>
+          roomIndex !== target.roomIndex
+            ? room
+            : {
+                ...room,
+                doors: (room.doors || []).filter((_, doorIndex) => doorIndex !== target.doorIndex),
+              }
+        )
+      );
+    }
+
+    if (target.type === "path") {
+      setPaths((prev) => prev.filter((_, index) => index !== target.pathIndex));
+    }
+
+    setNodes([]);
+    setEdges([]);
+    setHoveredTarget(null);
+    setSelectedTarget(null);
   }
 
   // ── Room type modal ───────────────────────────────────────────────────────
@@ -199,13 +303,20 @@ export default function Canvas({
 
   useEffect(() => {
     const onKeyDown = (event) => {
+      const isDeleteShortcut = event.key === "Delete" || event.key === "Backspace";
       const isUndoShortcut =
         (event.ctrlKey || event.metaKey) &&
         event.key.toLowerCase() === "z";
 
-      if (!isUndoShortcut) return;
-
       if (formModal || roomTypeModal) return;
+
+      if (isDeleteShortcut && (selectedTarget || hoveredTarget)) {
+        event.preventDefault();
+        removeTarget(selectedTarget || hoveredTarget);
+        return;
+      }
+
+      if (!isUndoShortcut) return;
 
       if (
         (mode === "room" || mode === "path") &&
@@ -218,7 +329,13 @@ export default function Canvas({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mode, currentPolygon.length, formModal, roomTypeModal]);
+  }, [mode, currentPolygon.length, formModal, roomTypeModal, hoveredTarget, selectedTarget]);
+
+  function handleContextMenu(e) {
+    if (!hoveredTarget) return;
+    e.preventDefault();
+    setSelectedTarget(hoveredTarget);
+  }
 
   function showFormDialog(config) {
     return new Promise((resolve) => {
@@ -606,6 +723,7 @@ export default function Canvas({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
       >
         <div
           className={styles.zoomLayer}
@@ -625,7 +743,19 @@ export default function Canvas({
               <g key={i}>
                 <polygon
                   points={room.polygon.map((p) => `${p.x},${p.y}`).join(" ")}
-                  fill="rgba(0,100,255,0.15)" stroke="#1a7fbf" strokeWidth={sw}
+                  fill={
+                    (hoveredTarget?.type === "room" && hoveredTarget.roomIndex === i) ||
+                    (selectedTarget?.type === "room" && selectedTarget.roomIndex === i)
+                    ? "rgba(215,25,49,0.18)"
+                    : "rgba(0,100,255,0.15)"
+                  }
+                  stroke={
+                    (hoveredTarget?.type === "room" && hoveredTarget.roomIndex === i) ||
+                    (selectedTarget?.type === "room" && selectedTarget.roomIndex === i)
+                    ? "#b51f35"
+                    : "#1a7fbf"
+                  }
+                  strokeWidth={sw}
                 />
                 <text
                   x={room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length}
@@ -640,7 +770,15 @@ export default function Canvas({
             {paths.map((path, i) => (
               <polyline key={i}
                 points={path.points.map((p) => `${p.x},${p.y}`).join(" ")}
-                fill="none" stroke="orange" strokeWidth={path.width / scale} opacity={0.5}
+                fill="none"
+                stroke={
+                  (hoveredTarget?.type === "path" && hoveredTarget.pathIndex === i) ||
+                  (selectedTarget?.type === "path" && selectedTarget.pathIndex === i)
+                    ? "#b51f35"
+                    : "orange"
+                }
+                strokeWidth={path.width / scale}
+                opacity={0.5}
               />
             ))}
             {paths.map((path) => path.points.map((pt, i) => (
@@ -660,9 +798,21 @@ export default function Canvas({
             ))}
 
             {/* Doors */}
-            {rooms.map((room) => room.doors?.map((door, i) => (
+            {rooms.map((room, roomIndex) => room.doors?.map((door, i) => (
               <g key={`${room.id}-door-${i}`}>
-                <circle cx={door.x} cy={door.y} r={r6} fill="lime" stroke="black" strokeWidth={sw} />
+                <circle
+                  cx={door.x}
+                  cy={door.y}
+                  r={r6}
+                  fill={
+                    (hoveredTarget?.type === "door" && hoveredTarget.roomIndex === roomIndex && hoveredTarget.doorIndex === i) ||
+                    (selectedTarget?.type === "door" && selectedTarget.roomIndex === roomIndex && selectedTarget.doorIndex === i)
+                      ? "#ff4d4d"
+                      : "lime"
+                  }
+                  stroke="black"
+                  strokeWidth={sw}
+                />
                 <text x={door.x + 8 / scale} y={door.y} fontSize={fs} fontFamily="system-ui">{door.id}</text>
               </g>
             )))}
@@ -675,6 +825,15 @@ export default function Canvas({
           <span> {paths.length} paths</span>
           <span> {doorCount} doors</span>
           <span>x: {mousePos.x} · y: {mousePos.y}</span>
+          {(selectedTarget || hoveredTarget) && (
+            <button
+              type="button"
+              className={styles.quickDeleteBtn}
+              onClick={() => removeTarget(selectedTarget || hoveredTarget)}
+            >
+              Delete Selected
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -56,6 +56,22 @@
   margin-left: auto;
 }
 
+.quickDeleteBtn {
+  margin-left: 8px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #b51f35;
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+}
+
+.quickDeleteBtn:hover {
+  background: #8f182a;
+}
+
 .modalOverlay {
   position: fixed;
   inset: 0;
