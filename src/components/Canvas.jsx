@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import floorplan from "../assets/hudson_floor5.jpg";
 import Sidebar from "./Sidebar";
 import styles from "../css/Canvas.module.css";
 
@@ -9,6 +8,10 @@ export default function Canvas({
   nodes, setNodes,
   paths, setPaths,
   edges, setEdges,
+  floorplan,
+  scale, setScale,
+  offset, setOffset,
+  onUploadBlueprint,
 }) {
   const [currentPolygon, setCurrentPolygon] = useState([]);
   const [mousePos, setMousePos]             = useState({ x: 0, y: 0 });
@@ -17,8 +20,6 @@ export default function Canvas({
   const [selectedType, setSelectedType]     = useState("");
   const [hoveredTarget, setHoveredTarget]   = useState(null);
   const [selectedTarget, setSelectedTarget] = useState(null);
-  const [scale, setScale]                   = useState(1);
-  const [offset, setOffset]                 = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging]         = useState(false);
   const [imgLoaded, setImgLoaded]           = useState(false);
 
@@ -28,8 +29,21 @@ export default function Canvas({
   const panStart     = useRef({ x: 0, y: 0 });
   const offsetStart  = useRef({ x: 0, y: 0 });
   const didPan       = useRef(false);
-  const scaleRef     = useRef(1);
-  const offsetRef    = useRef({ x: 0, y: 0 });
+  const scaleRef     = useRef(scale);
+  const offsetRef    = useRef(offset);
+
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+
+  useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
+
+  // Reset imgLoaded when floorplan changes so fitToScreen re-runs
+  useEffect(() => {
+    setImgLoaded(false);
+  }, [floorplan]);
 
   // ── Clamp: blueprint can't be panned off screen ───────────────────────────
   function clamp(ox, oy, s) {
@@ -42,10 +56,9 @@ export default function Canvas({
     const iw = img.naturalWidth  * s;
     const ih = img.naturalHeight * s;
 
-    // Blueprint must stay at least 80px inside the canvas on every edge
     const pad = 80;
-    const minX = cw - iw - pad;   // how far left blueprint can go
-    const maxX = pad;              // how far right blueprint can go
+    const minX = cw - iw - pad;
+    const maxX = pad;
     const minY = ch - ih - pad;
     const maxY = pad;
 
@@ -67,9 +80,8 @@ export default function Canvas({
     const el  = containerRef.current;
     if (!img || !el || !img.naturalWidth) return;
 
-    // Fit by WIDTH so there's no horizontal blank space
     const s  = el.clientWidth / img.naturalWidth;
-    const ox = 0; // flush left
+    const ox = 0;
     const oy = (el.clientHeight - img.naturalHeight * s) / 2;
 
     scaleRef.current  = s;
@@ -106,7 +118,6 @@ export default function Canvas({
       const currS = scaleRef.current;
       const currO = offsetRef.current;
 
-      // ctrlKey=true → pinch-to-zoom gesture
       if (e.ctrlKey) {
         const factor = e.deltaY < 0 ? 1.08 : 0.93;
         const next   = Math.min(Math.max(currS * factor, 0.1), 10);
@@ -120,15 +131,11 @@ export default function Canvas({
         return;
       }
 
-      // deltaX present → two-finger horizontal scroll
-      // deltaY only → could be vertical scroll or mouse wheel
       const isTrackpadScroll = Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) < 80;
 
       if (isTrackpadScroll) {
-        // Two-finger trackpad pan — use deltaX/deltaY directly
         applyOffset(currO.x - e.deltaX, currO.y - e.deltaY, currS);
       } else {
-        // Mouse wheel → zoom toward cursor
         const factor = e.deltaY < 0 ? 1.12 : 0.9;
         const next   = Math.min(Math.max(currS * factor, 0.1), 10);
         scaleRef.current = next;
@@ -729,13 +736,71 @@ export default function Canvas({
           className={styles.zoomLayer}
           style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}
         >
-          <img
-            ref={imgRef}
-            src={floorplan}
-            alt="Floor blueprint"
-            draggable={false}
-            onLoad={() => setImgLoaded(true)}
-          />
+          {floorplan ? (
+            <img
+              ref={imgRef}
+              src={floorplan}
+              alt="Floor blueprint"
+              draggable={false}
+              onLoad={() => setImgLoaded(true)}
+            />
+          ) : (
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "1200px",
+              height: "800px",
+              background: "#1e293b",
+              border: "4px dashed #475569",
+              borderRadius: "16px",
+              color: "#e2e8f0",
+              fontFamily: "system-ui, sans-serif",
+              padding: "48px",
+              boxSizing: "border-box",
+              textAlign: "center",
+            }}>
+              <span style={{ fontSize: "64px", marginBottom: "20px" }}>🗺️</span>
+              <h3 style={{ margin: "0 0 10px 0", fontSize: "24px", fontWeight: "700" }}>No Blueprint Loaded</h3>
+              <p style={{ margin: "0 0 24px 0", fontSize: "14px", color: "#94a3b8", maxWidth: "400px", lineHeight: "1.6" }}>
+                This floor doesn't have an active blueprint image. Import a JSON project file or upload an image to start designing!
+              </p>
+              <label style={{
+                background: "#38bdf8",
+                color: "#0f172a",
+                padding: "10px 24px",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+                boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)",
+                transition: "background 0.2s",
+              }}
+              onMouseEnter={(e) => e.target.style.background = "#7dd3fc"}
+              onMouseLeave={(e) => e.target.style.background = "#38bdf8"}
+              >
+                Upload Blueprint Image
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        if (onUploadBlueprint) {
+                          onUploadBlueprint(event.target.result);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          )}
 
           <svg>
             {/* Rooms */}
