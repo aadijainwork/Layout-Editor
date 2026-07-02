@@ -301,6 +301,72 @@ export default function Canvas({
     setSelectedTarget(null);
   }
 
+  function startEditingSelectedTarget() {
+    if (!selectedTarget) return;
+
+    if (selectedTarget.type === "room") {
+      const room = rooms[selectedTarget.roomIndex];
+      if (!room) return;
+
+      setEditingItem({
+        type: "room",
+        roomIndex: selectedTarget.roomIndex,
+        currentName: room.id,
+      });
+    }
+
+    if (selectedTarget.type === "door") {
+      const room = rooms[selectedTarget.roomIndex];
+      const door = room?.doors?.[selectedTarget.doorIndex];
+      if (!door) return;
+
+      setEditingItem({
+        type: "door",
+        roomIndex: selectedTarget.roomIndex,
+        doorIndex: selectedTarget.doorIndex,
+        currentName: door.id,
+      });
+    }
+  }
+
+  function saveEditingItem(newName) {
+    if (!editingItem || !newName?.trim()) {
+      setEditingItem(null);
+      return;
+    }
+
+    const trimmedName = newName.trim();
+
+    if (editingItem.type === "room") {
+      setRooms((prev) =>
+        prev.map((room, index) =>
+          index !== editingItem.roomIndex
+            ? room
+            : { ...room, id: trimmedName }
+        )
+      );
+    }
+
+    if (editingItem.type === "door") {
+      setRooms((prev) =>
+        prev.map((room, roomIndex) =>
+          roomIndex !== editingItem.roomIndex
+            ? room
+            : {
+                ...room,
+                doors: (room.doors || []).map((door, doorIndex) =>
+                  doorIndex !== editingItem.doorIndex
+                    ? door
+                    : { ...door, id: trimmedName }
+                ),
+              }
+        )
+      );
+    }
+
+    setEditingItem(null);
+  }
+
   // ── Room type modal ───────────────────────────────────────────────────────
   function showRoomTypeDropdown() {
     return new Promise((resolve) => {
@@ -422,22 +488,26 @@ export default function Canvas({
       title: "Add Door",
       fields: [
         { name: "id", label: "Door Number" },
-        { name: "width", label: "Door Width", type: "number", defaultValue: "1" },
-        { name: "roomId", label: "Room Name" },
+        { name: "doorWidth", label: "Door Width", type: "number", defaultValue: "12" },
+        { name: "roomName", label: "Room Name", defaultValue: roomId },
       ],
     });
 
     if (!result) return;
 
     const id = result.id?.trim();
-    const roomId = result.roomId?.trim();
-    const width = Number(result.width);
+    const roomName = result.roomName?.trim();
+    const doorWidth = Number(result.doorWidth);
 
-    if (!id || !roomId || Number.isNaN(width)) return;
+    if (!id || !roomName || Number.isNaN(doorWidth)) return;
+
+    const resolvedRoomIndex = rooms.findIndex((room) => room.id === roomName);
+    const targetRoomIndex = resolvedRoomIndex >= 0 ? resolvedRoomIndex : roomIndex;
+    if (targetRoomIndex < 0) return;
 
     setRooms((prev) =>
-      prev.map((room) =>
-        room.id !== roomId
+      prev.map((room, index) =>
+        index !== targetRoomIndex
           ? room
           : {
               ...room,
@@ -918,6 +988,11 @@ export default function Canvas({
                     : "#1a7fbf"
                   }
                   strokeWidth={sw}
+                  style={{ cursor: "pointer" }}
+                  onDoubleClick={() => {
+                    setSelectedTarget({ type: "room", roomIndex: i });
+                    setTimeout(() => startEditingSelectedTarget(), 0);
+                  }}
                 />
                 <text
                   x={room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length}
@@ -975,6 +1050,11 @@ export default function Canvas({
                   }
                   stroke="black"
                   strokeWidth={sw}
+                  style={{ cursor: "pointer" }}
+                  onDoubleClick={() => {
+                    setSelectedTarget({ type: "door", roomIndex, doorIndex: i });
+                    setTimeout(() => startEditingSelectedTarget(), 0);
+                  }}
                 />
                 <text 
                   x={door.x + 8 / scale} 
@@ -995,6 +1075,15 @@ export default function Canvas({
           <span> {paths.length} paths</span>
           <span> {doorCount} doors</span>
           <span>x: {mousePos.x} · y: {mousePos.y}</span>
+          {selectedTarget && (selectedTarget.type === "room" || selectedTarget.type === "door") && (
+            <button
+              type="button"
+              className={styles.quickEditBtn}
+              onClick={startEditingSelectedTarget}
+            >
+              Edit Name
+            </button>
+          )}
           {(selectedTarget || hoveredTarget) && (
             <button
               type="button"
