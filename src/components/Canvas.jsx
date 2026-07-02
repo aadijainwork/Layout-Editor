@@ -22,6 +22,7 @@ export default function Canvas({
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [isDragging, setIsDragging]         = useState(false);
   const [imgLoaded, setImgLoaded]           = useState(false);
+  const [editingItem, setEditingItem]       = useState(null); // { type: "room" | "door", roomIndex, doorIndex?, currentName }
 
   const containerRef = useRef(null);
   const imgRef       = useRef(null);
@@ -300,6 +301,72 @@ export default function Canvas({
     setSelectedTarget(null);
   }
 
+  function startEditingSelectedTarget() {
+    if (!selectedTarget) return;
+
+    if (selectedTarget.type === "room") {
+      const room = rooms[selectedTarget.roomIndex];
+      if (room) {
+        setEditingItem({
+          type: "room",
+          roomIndex: selectedTarget.roomIndex,
+          currentName: room.id,
+        });
+      }
+    }
+
+    if (selectedTarget.type === "door") {
+      const room = rooms[selectedTarget.roomIndex];
+      const door = room?.doors?.[selectedTarget.doorIndex];
+      if (door) {
+        setEditingItem({
+          type: "door",
+          roomIndex: selectedTarget.roomIndex,
+          doorIndex: selectedTarget.doorIndex,
+          currentName: door.id,
+        });
+      }
+    }
+  }
+
+  function saveEditingItem(newName) {
+    if (!editingItem || !newName.trim()) {
+      setEditingItem(null);
+      return;
+    }
+
+    const trimmedName = newName.trim();
+
+    if (editingItem.type === "room") {
+      setRooms((prev) =>
+        prev.map((room, index) =>
+          index !== editingItem.roomIndex
+            ? room
+            : { ...room, id: trimmedName }
+        )
+      );
+    }
+
+    if (editingItem.type === "door") {
+      setRooms((prev) =>
+        prev.map((room, roomIndex) =>
+          roomIndex !== editingItem.roomIndex
+            ? room
+            : {
+                ...room,
+                doors: (room.doors || []).map((door, doorIndex) =>
+                  doorIndex !== editingItem.doorIndex
+                    ? door
+                    : { ...door, id: trimmedName }
+                ),
+              }
+        )
+      );
+    }
+
+    setEditingItem(null);
+  }
+
   // ── Room type modal ───────────────────────────────────────────────────────
   function showRoomTypeDropdown() {
     return new Promise((resolve) => {
@@ -314,12 +381,19 @@ export default function Canvas({
       const isUndoShortcut =
         (event.ctrlKey || event.metaKey) &&
         event.key.toLowerCase() === "z";
+      const isEnterShortcut = event.key === "Enter";
 
       if (formModal || roomTypeModal) return;
 
       if (isDeleteShortcut && (selectedTarget || hoveredTarget)) {
         event.preventDefault();
         removeTarget(selectedTarget || hoveredTarget);
+        return;
+      }
+
+      if (isEnterShortcut && selectedTarget) {
+        event.preventDefault();
+        startEditingSelectedTarget();
         return;
       }
 
@@ -383,26 +457,37 @@ export default function Canvas({
   }
 
   async function openDoorModal(x, y) {
+    // Auto-detect which room the door belongs to
+    let roomId = "";
+    let roomIndex = -1;
+    
+    rooms.forEach((room, index) => {
+      if (isPointInsidePolygon({ x, y }, room.polygon)) {
+        roomId = room.id;
+        roomIndex = index;
+      }
+    });
+
     const result = await showFormDialog({
       title: "Add Door",
       fields: [
-        { name: "id", label: "Door Number" },
-        { name: "width", label: "Door Width", type: "number", defaultValue: "1" },
-        { name: "roomId", label: "Room Name" },
+        { name: "id", label: "Door Number", required: true },
+        { name: "width", label: "Door Width", type: "number", defaultValue: "12" },
+        { name: "roomId", label: "Room Name", defaultValue: roomId, readOnly: !roomId },
       ],
     });
 
     if (!result) return;
 
     const id = result.id?.trim();
-    const roomId = result.roomId?.trim();
+    const detectedRoomId = result.roomId?.trim();
     const width = Number(result.width);
 
-    if (!id || !roomId || Number.isNaN(width)) return;
+    if (!id || !detectedRoomId || Number.isNaN(width)) return;
 
     setRooms((prev) =>
       prev.map((room) =>
-        room.id !== roomId
+        room.id !== detectedRoomId
           ? room
           : {
               ...room,
@@ -431,7 +516,7 @@ export default function Canvas({
     if (mode === "path") {
       const pathResult = await showFormDialog({
         title: "Create Path",
-        fields: [{ name: "width", label: "Path Width", type: "number", defaultValue: "2" }],
+        fields: [{ name: "width", label: "Path Width", type: "number", defaultValue: "18" }],
       });
 
       const width = Number(pathResult?.width);
@@ -697,6 +782,8 @@ export default function Canvas({
                       e.target.value
                     )
                   }
+                  readOnly={field.readOnly || false}
+                  disabled={field.readOnly || false}
                 />
               </label>
             ))}
@@ -713,6 +800,52 @@ export default function Canvas({
                 onClick={() =>
                   closeFormModal(formModal.values)
                 }
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingItem && (
+        <div className={styles.modalOverlay} onClick={() => setEditingItem(null)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3 className={styles.modalTitle}>
+              Rename {editingItem.type === "room" ? "Room" : "Door"}
+            </h3>
+            <label className={styles.formLabel}>
+              New Name
+              <input
+                autoFocus
+                className={styles.formInput}
+                type="text"
+                defaultValue={editingItem.currentName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    saveEditingItem(e.target.value);
+                  }
+                  if (e.key === "Escape") {
+                    setEditingItem(null);
+                  }
+                }}
+                onBlur={(e) => saveEditingItem(e.target.value)}
+              />
+            </label>
+            <div className={styles.modalActions}>
+              <button
+                className={styles.modalCancel}
+                onClick={() => setEditingItem(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className={styles.modalOk}
+                onClick={(e) => {
+                  const input = e.target.closest(`.${styles.modal}`).querySelector(`.${styles.formInput}`);
+                  saveEditingItem(input.value);
+                }}
               >
                 OK
               </button>
@@ -821,12 +954,21 @@ export default function Canvas({
                     : "#1a7fbf"
                   }
                   strokeWidth={sw}
+                  style={{ cursor: "pointer" }}
+                  onDoubleClick={() => {
+                    setEditingItem({
+                      type: "room",
+                      roomIndex: i,
+                      currentName: room.id,
+                    });
+                  }}
                 />
                 <text
                   x={room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length}
                   y={room.polygon.reduce((s, p) => s + p.y, 0) / room.polygon.length}
                   textAnchor="middle" fontSize={fs} fill="#185FA5"
                   fontWeight="600" fontFamily="system-ui" pointerEvents="none"
+                  title="Double-click to rename"
                 >{room.id}</text>
               </g>
             ))}
@@ -877,8 +1019,25 @@ export default function Canvas({
                   }
                   stroke="black"
                   strokeWidth={sw}
+                  style={{ cursor: "pointer" }}
+                  onDoubleClick={() => {
+                    setEditingItem({
+                      type: "door",
+                      roomIndex,
+                      doorIndex: i,
+                      currentName: door.id,
+                    });
+                  }}
+                  title="Double-click to rename"
                 />
-                <text x={door.x + 8 / scale} y={door.y} fontSize={fs} fontFamily="system-ui">{door.id}</text>
+                <text 
+                  x={door.x + 8 / scale} 
+                  y={door.y} 
+                  fontSize={fs} 
+                  fontFamily="system-ui"
+                  pointerEvents="none"
+                  title="Double-click door to rename"
+                >{door.id}</text>
               </g>
             )))}
           </svg>
@@ -890,6 +1049,11 @@ export default function Canvas({
           <span> {paths.length} paths</span>
           <span> {doorCount} doors</span>
           <span>x: {mousePos.x} · y: {mousePos.y}</span>
+          {selectedTarget && (selectedTarget.type === "room" || selectedTarget.type === "door") && (
+            <span style={{ fontSize: "12px", color: "#94a3b8" }}>
+              Press Enter to rename
+            </span>
+          )}
           {(selectedTarget || hoveredTarget) && (
             <button
               type="button"
