@@ -72,6 +72,22 @@
   background: #8f182a;
 }
 
+.quickEditBtn {
+  margin-left: 8px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #185fa5;
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+}
+
+.quickEditBtn:hover {
+  background: #0f4a85;
+}
+
 .modalOverlay {
   position: fixed;
   inset: 0;
