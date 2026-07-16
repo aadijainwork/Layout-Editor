@@ -5,8 +5,10 @@ import styles from "../css/Canvas.module.css";
 export default function Canvas({
   mode, setMode,
   rooms, setRooms,
+  // eslint-disable-next-line no-unused-vars
   nodes, setNodes,
   paths, setPaths,
+  // eslint-disable-next-line no-unused-vars
   edges, setEdges,
   floorplan,
   scale, setScale,
@@ -22,7 +24,13 @@ export default function Canvas({
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [isDragging, setIsDragging]         = useState(false);
   const [imgLoaded, setImgLoaded]           = useState(false);
+  const [prevFloorplan, setPrevFloorplan]   = useState(floorplan);
   const [editingItem, setEditingItem]       = useState(null); // { type: "room" | "door", roomIndex, doorIndex?, currentName }
+
+  if (floorplan !== prevFloorplan) {
+    setPrevFloorplan(floorplan);
+    setImgLoaded(false);
+  }
 
   const containerRef = useRef(null);
   const imgRef       = useRef(null);
@@ -42,9 +50,6 @@ export default function Canvas({
   }, [offset]);
 
   // Reset imgLoaded when floorplan changes so fitToScreen re-runs
-  useEffect(() => {
-    setImgLoaded(false);
-  }, [floorplan]);
 
   // ── Clamp: blueprint can't be panned off screen ───────────────────────────
   function clamp(ox, oy, s) {
@@ -456,6 +461,7 @@ export default function Canvas({
     });
   }
 
+  // eslint-disable-next-line no-unused-vars
   function getDoorWidth(door) {
     const parsed = Number(door?.doorWidth ?? door?.width ?? 12);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 12;
@@ -466,6 +472,7 @@ export default function Canvas({
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 18;
   }
 
+  // eslint-disable-next-line no-unused-vars
   function getDoorRoomName(door, room) {
     const fromDoor = door?.roomName ?? door?.roomId;
     const normalized = typeof fromDoor === "string" ? fromDoor.trim() : "";
@@ -800,13 +807,20 @@ export default function Canvas({
 
       {formModal && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modal}>
+          <form
+            className={styles.modal}
+            onSubmit={(e) => {
+              e.preventDefault();
+              closeFormModal(formModal.values);
+            }}
+          >
             <h3 className={styles.modalTitle}>{formModal.title}</h3>
 
-            {formModal.fields.map((field) => (
+            {formModal.fields.map((field, idx) => (
               <label key={field.name} className={styles.formLabel}>
                 {field.label}
                 <input
+                  autoFocus={idx === 0}
                   className={styles.formInput}
                   type={field.type || "text"}
                   value={formModal.values[field.name] ?? ""}
@@ -824,21 +838,20 @@ export default function Canvas({
 
             <div className={styles.modalActions}>
               <button
+                type="button"
                 className={styles.modalCancel}
                 onClick={() => closeFormModal(null)}
               >
                 Cancel
               </button>
               <button
+                type="submit"
                 className={styles.modalOk}
-                onClick={() =>
-                  closeFormModal(formModal.values)
-                }
               >
                 OK
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 

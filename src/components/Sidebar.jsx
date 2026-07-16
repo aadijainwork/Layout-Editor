@@ -7,7 +7,9 @@ const ROOM_TYPES = [
   "Staircase",
 ];
 
-export default function Sidebar({
+import { memo } from "react";
+
+const Sidebar = memo(function Sidebar({
   mode,
   setMode,
   currentPolygon,
@@ -82,9 +84,19 @@ export default function Sidebar({
       {/* Room type modal */}
       {roomTypeModal && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modal}>
+          <form
+            className={styles.modal}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (selectedType) {
+                roomTypeModal.resolve(selectedType);
+                setRoomTypeModal(null);
+              }
+            }}
+          >
             <h3 className={styles.modalTitle}>Room Type</h3>
             <select
+              autoFocus
               className={styles.modalSelect}
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
@@ -98,20 +110,21 @@ export default function Sidebar({
             </select>
             <div className={styles.modalActions}>
               <button
+                type="button"
                 className={styles.modalCancel}
                 onClick={() => { roomTypeModal.resolve(null); setRoomTypeModal(null); }}
               >
                 Cancel
               </button>
               <button
+                type="submit"
                 className={styles.modalOk}
                 disabled={!selectedType}
-                onClick={() => { roomTypeModal.resolve(selectedType); setRoomTypeModal(null); }}
               >
                 OK
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 
@@ -124,4 +137,6 @@ export default function Sidebar({
 
     </div>
   );
-}
+});
+
+export default Sidebar;
