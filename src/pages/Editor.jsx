@@ -8,6 +8,7 @@ import floor7 from "../assets/hudson_floor7.jpg";
 import gangesFloor9 from "../assets/ganges_floor9.jpg";
 import gravityLayout from "../assets/Gravity.jpg";
 import jupiterLayout from "../assets/Jupiter.jpg";
+import gurugramFloor3 from "../assets/Gurugram_3rd.jpg";
 
 const AUTOSAVE_KEY = "layout-editor.autosave.v1";
 
@@ -62,6 +63,25 @@ function loadAutosavedState() {
           id: "floor-jupiter",
           name: "Jupiter Layout",
           blueprint: jupiterLayout,
+          rooms: [],
+          paths: [],
+          nodes: [],
+          edges: [],
+          canvasState: { scale: 1, offset: { x: 0, y: 0 } }
+        }
+      ]
+    },
+    {
+      id: "building-gurugram",
+      name: "3rd Floor Gurugram",
+      location: "Gurugram",
+      hasFloors: false,
+      activeFloorId: "floor-3",
+      floors: [
+        {
+          id: "floor-3",
+          name: "3rd Floor",
+          blueprint: gurugramFloor3,
           rooms: [],
           paths: [],
           nodes: [],
