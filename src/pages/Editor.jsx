@@ -10,7 +10,24 @@ import gravityLayout from "../assets/Gravity.jpg";
 import jupiterLayout from "../assets/Jupiter.jpg";
 import gurugramFloor3 from "../assets/Gurugram_3rd.jpg";
 
+// ── Authoritative floor definitions ─────────────────────────────────────────
+import jupiterDefinition from "../../../Indoor_Navigation/backend/src/data/Jupiter.json";
+
 const AUTOSAVE_KEY = "layout-editor.autosave.v1";
+
+function ensureFloorLevel(floor, fallbackIndex = 1) {
+  if (typeof floor?.level === "number" && Number.isFinite(floor.level)) {
+    return floor.level;
+  }
+  if (floor?.level !== undefined && floor?.level !== null && !isNaN(parseInt(floor.level, 10))) {
+    return parseInt(floor.level, 10);
+  }
+  const nameDigits = String(floor?.name || "").match(/(\d+)/);
+  if (nameDigits) return parseInt(nameDigits[1], 10);
+  const idDigits = String(floor?.id || "").match(/(\d+)/);
+  if (idDigits) return parseInt(idDigits[1], 10);
+  return fallbackIndex;
+}
 
 function loadAutosavedState() {
   const defaultBuildings = [
@@ -24,6 +41,7 @@ function loadAutosavedState() {
         {
           id: "floor-9",
           name: "9th Floor",
+          level: 9,
           blueprint: gangesFloor9,
           rooms: [],
           paths: [],
@@ -43,6 +61,7 @@ function loadAutosavedState() {
         {
           id: "floor-gravity",
           name: "Gravity Layout",
+          level: 1,
           blueprint: gravityLayout,
           rooms: [],
           paths: [],
@@ -57,16 +76,17 @@ function loadAutosavedState() {
       name: "Jupiter",
       location: "Bangalore",
       hasFloors: false,
-      activeFloorId: "floor-jupiter",
+      activeFloorId: "floor-jupiter-f1",
       floors: [
         {
-          id: "floor-jupiter",
+          id: "floor-jupiter-f1",
           name: "Jupiter Layout",
+          level: 1,
           blueprint: jupiterLayout,
-          rooms: [],
-          paths: [],
-          nodes: [],
-          edges: [],
+          rooms: Array.isArray(jupiterDefinition?.rooms) ? jupiterDefinition.rooms : [],
+          paths: Array.isArray(jupiterDefinition?.paths) ? jupiterDefinition.paths : [],
+          nodes: Array.isArray(jupiterDefinition?.graph?.nodes) ? jupiterDefinition.graph.nodes : [],
+          edges: Array.isArray(jupiterDefinition?.graph?.edges) ? jupiterDefinition.graph.edges : [],
           canvasState: { scale: 1, offset: { x: 0, y: 0 } }
         }
       ]
@@ -81,6 +101,7 @@ function loadAutosavedState() {
         {
           id: "floor-3",
           name: "3rd Floor",
+          level: 3,
           blueprint: gurugramFloor3,
           rooms: [],
           paths: [],
@@ -100,6 +121,7 @@ function loadAutosavedState() {
         {
           id: "floor-5",
           name: "5th Floor",
+          level: 5,
           blueprint: floor5,
           rooms: [],
           paths: [],
@@ -110,6 +132,7 @@ function loadAutosavedState() {
         {
           id: "floor-6",
           name: "6th Floor",
+          level: 6,
           blueprint: floor6,
           rooms: [],
           paths: [],
@@ -120,6 +143,7 @@ function loadAutosavedState() {
         {
           id: "floor-7",
           name: "7th Floor",
+          level: 7,
           blueprint: floor7,
           rooms: [],
           paths: [],
@@ -153,6 +177,7 @@ function loadAutosavedState() {
         {
           id: "floor-5",
           name: "5th Floor",
+          level: 5,
           blueprint: floor5,
           rooms: parsed.rooms || [],
           paths: parsed.paths || [],
@@ -163,6 +188,7 @@ function loadAutosavedState() {
         {
           id: "floor-6",
           name: "6th Floor",
+          level: 6,
           blueprint: floor6,
           rooms: [],
           paths: [],
@@ -173,6 +199,7 @@ function loadAutosavedState() {
         {
           id: "floor-7",
           name: "7th Floor",
+          level: 7,
           blueprint: floor7,
           rooms: [],
           paths: [],
@@ -205,7 +232,7 @@ function loadAutosavedState() {
 
     // Case 2: Floors only structure (before buildings were introduced)
     if (Array.isArray(parsed.floors) && parsed.floors.length > 0 && !parsed.buildings) {
-      const resolvedFloors = parsed.floors.map(f => {
+      const resolvedFloors = parsed.floors.map((f, idx) => {
         let bp = f.blueprint;
         if (bp === "floor5" || bp?.includes("hudson_floor5")) bp = floor5;
         else if (bp === "floor6" || bp?.includes("hudson_floor6")) bp = floor6;
@@ -214,6 +241,7 @@ function loadAutosavedState() {
         return {
           id: f.id || `floor-${Math.random().toString(36).substr(2, 9)}`,
           name: f.name || "Unnamed Floor",
+          level: ensureFloorLevel(f, idx + 1),
           blueprint: bp || null,
           rooms: Array.isArray(f.rooms) ? f.rooms : [],
           paths: Array.isArray(f.paths) ? f.paths : [],
@@ -247,7 +275,7 @@ function loadAutosavedState() {
     // Case 3: Proper buildings structure
     if (Array.isArray(parsed.buildings) && parsed.buildings.length > 0) {
       const resolvedBuildings = parsed.buildings.map(b => {
-        const resolvedFloors = (b.floors || []).map(f => {
+        const resolvedFloors = (b.floors || []).map((f, idx) => {
           let bp = f.blueprint;
           if (bp === "floor5" || bp?.includes("hudson_floor5")) bp = floor5;
           else if (bp === "floor6" || bp?.includes("hudson_floor6")) bp = floor6;
@@ -259,6 +287,7 @@ function loadAutosavedState() {
           return {
             id: f.id || `floor-${Math.random().toString(36).substr(2, 9)}`,
             name: f.name || "Unnamed Floor",
+            level: ensureFloorLevel(f, idx + 1),
             blueprint: bp || null,
             rooms: Array.isArray(f.rooms) ? f.rooms : [],
             paths: Array.isArray(f.paths) ? f.paths : [],
@@ -311,6 +340,7 @@ function loadAutosavedState() {
           ganges.floors = [{
             id: "floor-9",
             name: "9th Floor",
+            level: 9,
             blueprint: gangesFloor9,
             rooms: [],
             paths: [],
@@ -333,16 +363,34 @@ function loadAutosavedState() {
       const jupiter = resolvedBuildings.find(b => b.id === "building-jupiter");
       if (jupiter) {
         jupiter.location = "Bangalore";
-        if (jupiter.floors[0]) jupiter.floors[0].blueprint = jupiterLayout;
+        jupiter.hasFloors = false;
+        if (jupiter.activeFloorId === "floor-jupiter" || !jupiter.activeFloorId) {
+          jupiter.activeFloorId = "floor-jupiter-f1";
+        }
+        if (jupiter.floors[0]) {
+          if (jupiter.floors[0].id === "floor-jupiter") {
+            jupiter.floors[0].id = "floor-jupiter-f1";
+          }
+          jupiter.floors[0].blueprint = jupiterLayout;
+          jupiter.floors[0].level = ensureFloorLevel(jupiter.floors[0], 1);
+          const hasDuplicates = Array.isArray(jupiter.floors[0].rooms) &&
+            jupiter.floors[0].rooms.some(r => r.id === "Cabin 1" || r.id === "4 Pax Meeting Room");
+          if (!Array.isArray(jupiter.floors[0].rooms) || jupiter.floors[0].rooms.length === 0 || hasDuplicates) {
+            jupiter.floors[0].rooms = Array.isArray(jupiterDefinition?.rooms) ? jupiterDefinition.rooms : [];
+            jupiter.floors[0].paths = Array.isArray(jupiterDefinition?.paths) ? jupiterDefinition.paths : [];
+            jupiter.floors[0].nodes = Array.isArray(jupiterDefinition?.graph?.nodes) ? jupiterDefinition.graph.nodes : [];
+            jupiter.floors[0].edges = Array.isArray(jupiterDefinition?.graph?.edges) ? jupiterDefinition.graph.edges : [];
+          }
+        }
       }
       // Fix Hudson location and blueprints
       const hudson = resolvedBuildings.find(b => b.id === "building-hudson");
       if (hudson) {
         hudson.location = "Pune";
         hudson.floors.forEach(f => {
-          if (f.id === "floor-5" || f.name === "5th Floor") f.blueprint = floor5;
-          else if (f.id === "floor-6" || f.name === "6th Floor") f.blueprint = floor6;
-          else if (f.id === "floor-7" || f.name === "7th Floor") f.blueprint = floor7;
+          if (f.id === "floor-5" || f.name === "5th Floor") { f.blueprint = floor5; f.level = f.level ?? 5; }
+          else if (f.id === "floor-6" || f.name === "6th Floor") { f.blueprint = floor6; f.level = f.level ?? 6; }
+          else if (f.id === "floor-7" || f.name === "7th Floor") { f.blueprint = floor7; f.level = f.level ?? 7; }
         });
       }
       // Fix Ganges blueprint
@@ -351,7 +399,10 @@ function loadAutosavedState() {
 
       const activeBId = parsed.activeBuildingId || resolvedBuildings[0].id;
       const activeB = resolvedBuildings.find(b => b.id === activeBId) || resolvedBuildings[0];
-      const activeFId = parsed.activeFloorId || activeB.activeFloorId || (activeB.floors[0]?.id || null);
+      let activeFId = parsed.activeFloorId || activeB.activeFloorId || (activeB.floors[0]?.id || null);
+      if (activeBId === "building-jupiter" && (activeFId === "floor-jupiter" || !activeFId)) {
+        activeFId = "floor-jupiter-f1";
+      }
       const activeLoc = parsed.activeLocation || activeB.location || "Pune";
 
       return {
@@ -384,16 +435,23 @@ export default function Editor() {
   // Active building & floor derivations
   const activeBuilding = buildings.find(b => b.id === activeBuildingId) || buildings[0];
   const floors = activeBuilding?.floors || [];
-  const activeFloor = floors.find(f => f.id === activeFloorId) || floors[0] || {
-    id: "dummy",
-    name: "No Floor",
-    rooms: [],
-    paths: [],
-    nodes: [],
-    edges: [],
-    blueprint: null,
-    canvasState: { scale: 1, offset: { x: 0, y: 0 } }
-  };
+  const rawActiveFloor = floors.find(f => f.id === activeFloorId) || floors[0];
+  const activeFloor = rawActiveFloor
+    ? {
+        ...rawActiveFloor,
+        level: ensureFloorLevel(rawActiveFloor, 1),
+      }
+    : {
+        id: "dummy",
+        name: "No Floor",
+        level: 1,
+        rooms: [],
+        paths: [],
+        nodes: [],
+        edges: [],
+        blueprint: null,
+        canvasState: { scale: 1, offset: { x: 0, y: 0 } }
+      };
 
   // Active floor states
   const [rooms, setRooms] = useState(activeFloor.rooms || []);
@@ -410,12 +468,14 @@ export default function Editor() {
   const [isManagerOpen, setIsManagerOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newFloorName, setNewFloorName] = useState("");
+  const [newFloorLevel, setNewFloorLevel] = useState("");
   const [newFloorBlueprintType, setNewFloorBlueprintType] = useState("floor5");
   const [newFloorBlueprintFile, setNewFloorBlueprintFile] = useState(null);
 
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [floorToRename, setFloorToRename] = useState(null);
   const [renameFloorName, setRenameFloorName] = useState("");
+  const [renameFloorLevel, setRenameFloorLevel] = useState("");
 
   // Location selector UI states
   const [isLocationManagerOpen, setIsLocationManagerOpen] = useState(false);
@@ -851,10 +911,15 @@ export default function Editor() {
     else if (newFloorBlueprintType === "floor9") bp = gangesFloor9;
     else if (newFloorBlueprintType === "custom") bp = newFloorBlueprintFile;
 
+    const parsedLevel = parseInt(newFloorLevel, 10);
+    const fallbackLevel = parseInt(newFloorName.match(/\d+/)?.[0], 10) || (floors.length + 1);
+    const resolvedLevel = !isNaN(parsedLevel) ? parsedLevel : fallbackLevel;
+
     const newFloorId = `floor-${Math.random().toString(36).substr(2, 9)}`;
     const newFloorObj = {
       id: newFloorId,
       name: newFloorName.trim(),
+      level: resolvedLevel,
       blueprint: bp,
       rooms: [],
       paths: [],
@@ -911,6 +976,7 @@ export default function Editor() {
     // Reset modals and inputs
     setIsAddModalOpen(false);
     setNewFloorName("");
+    setNewFloorLevel("");
     setNewFloorBlueprintType("floor5");
     setNewFloorBlueprintFile(null);
     setIsManagerOpen(false);
@@ -920,6 +986,8 @@ export default function Editor() {
   const handleRenameFloorSubmit = () => {
     if (!renameFloorName.trim() || !floorToRename) return;
 
+    const parsedLevel = parseInt(renameFloorLevel, 10);
+
     setBuildings(prev => prev.map(b => {
       if (b.id === activeBuildingId) {
         return {
@@ -928,7 +996,8 @@ export default function Editor() {
             if (f.id === floorToRename.id) {
               return {
                 ...f,
-                name: renameFloorName.trim()
+                name: renameFloorName.trim(),
+                level: !isNaN(parsedLevel) ? parsedLevel : (f.level ?? 1),
               };
             }
             return f;
@@ -941,11 +1010,13 @@ export default function Editor() {
     setIsRenameModalOpen(false);
     setFloorToRename(null);
     setRenameFloorName("");
+    setRenameFloorLevel("");
   };
 
   const triggerRenameFloor = (floor) => {
     setFloorToRename(floor);
     setRenameFloorName(floor.name);
+    setRenameFloorLevel(floor.level !== undefined ? String(floor.level) : "");
     setIsRenameModalOpen(true);
   };
 
@@ -964,6 +1035,7 @@ export default function Editor() {
     const duplicatedFloor = {
       id: newFloorId,
       name: `${floorToDup.name} (Copy)`,
+      level: floorToDup.level ?? 1,
       blueprint: currentBlueprint,
       rooms: JSON.parse(JSON.stringify(currentRooms)),
       paths: JSON.parse(JSON.stringify(currentPaths)),
@@ -1837,6 +1909,24 @@ export default function Editor() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontSize: "13px", fontWeight: "500", color: "#555555" }}>Floor Level (Numeric)</label>
+              <input
+                type="number"
+                value={newFloorLevel}
+                onChange={(e) => setNewFloorLevel(e.target.value)}
+                placeholder="e.g. 8"
+                style={{
+                  padding: "8px 12px",
+                  background: "#ffffff",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  color: "#333333",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               <label style={{ fontSize: "13px", fontWeight: "500", color: "#555555" }}>Blueprint Image</label>
               <select
                 value={newFloorBlueprintType}
@@ -1979,12 +2069,31 @@ export default function Editor() {
               />
             </div>
 
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontSize: "13px", fontWeight: "500", color: "#555555" }}>Floor Level (Numeric)</label>
+              <input
+                type="number"
+                value={renameFloorLevel}
+                onChange={(e) => setRenameFloorLevel(e.target.value)}
+                placeholder={floorToRename.level !== undefined ? String(floorToRename.level) : "e.g. 5"}
+                style={{
+                  padding: "8px 12px",
+                  background: "#ffffff",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  color: "#333333",
+                }}
+              />
+            </div>
+
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "8px" }}>
               <button
                 onClick={() => {
                   setIsRenameModalOpen(false);
                   setFloorToRename(null);
                   setRenameFloorName("");
+                  setRenameFloorLevel("");
                 }}
                 style={{
                   padding: "8px 16px",
@@ -2065,6 +2174,15 @@ export default function Editor() {
         scale={scale}     setScale={setScale}
         offset={offset}   setOffset={setOffset}
         onUploadBlueprint={(imgSrc) => setSelectedFloor(imgSrc)}
+        building={{
+          id: activeBuilding?.id || "building-unknown",
+          name: activeBuilding?.name || "Unnamed Building",
+        }}
+        floor={{
+          id: activeFloor?.id || "floor-unknown",
+          name: activeFloor?.name || "Unnamed Floor",
+          level: ensureFloorLevel(activeFloor, 1),
+        }}
       />
     </>
   );

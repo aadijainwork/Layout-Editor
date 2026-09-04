@@ -16,6 +16,9 @@ const Sidebar = memo(function Sidebar({
   onFinish,
   onUndo,
   onGenerateGraph,
+  onPublish,
+  publishState = "idle",
+  onOpenPublishModal,
   roomTypeModal,
   setRoomTypeModal,
   selectedType,
@@ -128,11 +131,43 @@ const Sidebar = memo(function Sidebar({
         </div>
       )}
 
-      {/* Graph generation pinned to bottom */}
+      {/* Graph generation & Publish pinned to bottom */}
       <div className={styles.bottomActions}>
         <button className={styles.generateBtn} onClick={onGenerateGraph}>
           Generate Graph
         </button>
+        <button
+          className={styles.publishBtn}
+          onClick={onPublish}
+          disabled={publishState === "publishing"}
+          title="Publish current floor layout to Indoor Navigation backend"
+        >
+          {publishState === "publishing" ? "Publishing..." : "Publish to Indoor Nav"}
+        </button>
+        {publishState === "error" && (
+          <div
+            className={styles.publishBadgeError}
+            onClick={onOpenPublishModal}
+            title="Click to view error details"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpenPublishModal(); }}
+          >
+            ⚠️ Publish failed (view details)
+          </div>
+        )}
+        {publishState === "success" && (
+          <div
+            className={styles.publishBadgeSuccess}
+            onClick={onOpenPublishModal}
+            title="Click to view publish details"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpenPublishModal(); }}
+          >
+            ✓ Published (view details)
+          </div>
+        )}
       </div>
 
     </div>

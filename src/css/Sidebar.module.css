@@ -160,6 +160,70 @@
   background: #0f4a85;
 }
 
+.publishBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #185fa5;
+  background: #ffffff;
+  font-size: 13px;
+  color: #185fa5;
+  cursor: pointer;
+  width: 100%;
+  font-family: inherit;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.publishBtn:hover:not(:disabled) {
+  background: #e6f1fb;
+}
+
+.publishBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+}
+
+.publishBadgeError {
+  font-size: 11px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 5px 6px;
+  text-align: center;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.publishBadgeError:hover {
+  background: #fee2e2;
+}
+
+.publishBadgeSuccess {
+  font-size: 11px;
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 5px 6px;
+  text-align: center;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.publishBadgeSuccess:hover {
+  background: #dcfce7;
+}
+
 .modalOverlay {
   position: fixed;
   inset: 0;

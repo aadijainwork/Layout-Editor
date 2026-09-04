@@ -1,19 +1,22 @@
 import { useState, useRef, useEffect } from "react";
 import Sidebar from "./Sidebar";
+import PublishModal from "./PublishModal";
+import { publishLayout } from "../api/indoorNavApi";
+import { validateLayoutForPublish } from "../utils/publishValidation";
 import styles from "../css/Canvas.module.css";
 
 export default function Canvas({
   mode, setMode,
   rooms, setRooms,
-  // eslint-disable-next-line no-unused-vars
   nodes, setNodes,
   paths, setPaths,
-  // eslint-disable-next-line no-unused-vars
   edges, setEdges,
   floorplan,
   scale, setScale,
   offset, setOffset,
   onUploadBlueprint,
+  building,
+  floor,
 }) {
   const [currentPolygon, setCurrentPolygon] = useState([]);
   const [mousePos, setMousePos]             = useState({ x: 0, y: 0 });
@@ -26,6 +29,10 @@ export default function Canvas({
   const [imgLoaded, setImgLoaded]           = useState(false);
   const [prevFloorplan, setPrevFloorplan]   = useState(floorplan);
   const [editingItem, setEditingItem]       = useState(null); // { type: "room" | "door", roomIndex, doorIndex?, currentName }
+  const [publishState, setPublishState]     = useState("idle"); // "idle" | "publishing" | "success" | "error"
+  const [publishErrors, setPublishErrors]   = useState([]);
+  const [publishResult, setPublishResult]   = useState(null);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
 
   if (floorplan !== prevFloorplan) {
     setPrevFloorplan(floorplan);
@@ -778,6 +785,67 @@ export default function Canvas({
     );
   }
 
+  async function handlePublish() {
+    const currentDefinition = {
+      rooms,
+      paths,
+      graph: {
+        nodes: nodes || [],
+        edges: edges || [],
+      },
+    };
+
+    const validation = validateLayoutForPublish({
+      building,
+      floor,
+      definition: currentDefinition,
+    });
+
+    if (!validation.valid) {
+      setPublishState("error");
+      setPublishErrors(validation.errors);
+      setPublishResult(null);
+      setIsPublishModalOpen(true);
+      return;
+    }
+
+    setPublishState("publishing");
+    setPublishErrors([]);
+    setPublishResult(null);
+    setIsPublishModalOpen(true);
+
+    try {
+      const responseData = await publishLayout({
+        building,
+        floor,
+        definition: currentDefinition,
+      });
+
+      setPublishState("success");
+      setPublishResult({
+        building: {
+          id: building?.id || "unknown",
+          name: building?.name || "Unnamed Building",
+        },
+        floor: {
+          id: floor?.id || "unknown",
+          name: floor?.name || "Unnamed Floor",
+          level: floor?.level ?? 1,
+        },
+        counts: {
+          rooms: rooms.length,
+          nodes: (nodes || []).length,
+          edges: (edges || []).length,
+        },
+        data: responseData?.data,
+        meta: responseData?.meta,
+      });
+    } catch (err) {
+      setPublishState("error");
+      setPublishErrors([err.message || "Failed to publish layout to Indoor Navigation backend."]);
+    }
+  }
+
   const cursor = isDragging ? "grabbing"
     : mode === "room" || mode === "path" ? "crosshair"
     : "grab";
@@ -799,6 +867,9 @@ export default function Canvas({
         onFinish={finishPolygon}
         onUndo={undoLastPoint}
         onGenerateGraph={generateGraph}
+        onPublish={handlePublish}
+        publishState={publishState}
+        onOpenPublishModal={() => setIsPublishModalOpen(true)}
         roomTypeModal={roomTypeModal}
         setRoomTypeModal={setRoomTypeModal}
         selectedType={selectedType}
@@ -1108,6 +1179,22 @@ export default function Canvas({
           )}
         </div>
       </div>
+
+      <PublishModal
+        isOpen={isPublishModalOpen}
+        onClose={() => {
+          setIsPublishModalOpen(false);
+          if (publishState === "success") {
+            setPublishState("idle");
+          }
+        }}
+        publishState={publishState}
+        errors={publishErrors}
+        result={publishResult}
+        building={building}
+        floor={floor}
+        onRetry={handlePublish}
+      />
     </div>
   );
 }
